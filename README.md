@@ -101,7 +101,7 @@ the model can't reach for it on its own. It opens in a modal labeled with the UR
 - **On the receipt:** `resources/read`, routed by the header `Mcp-Name: menu://drinks/latte`. The
   response carries `ttlMs` + `cacheScope: public` — the menu is cacheable, so clients needn't re-fetch
   it every turn.
-- **In the code:** [`MenuResources#drink`](src/main/java/com/callibrity/mocapi/cafe/MenuResources.java)
+- **In the code:** [`MenuResources#drink`](src/main/java/com/callibrity/mocapi/cafe/mcp/MenuResources.java)
   — a `@McpResourceTemplate` on the parameterized URI `menu://drinks/{slug}`. The whole-menu read on
   load is `MenuResources#menu` (`@McpResource`, `menu://drinks`) in the same file.
 
@@ -113,7 +113,7 @@ session, so the id *is* the state the client carries forward.
 
 - **On the receipt:** `tools/call place-order`; the `structuredContent` block with `orderId` and
   `statusUri`.
-- **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/OrderTools.java)
+- **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
   — a `@McpTool` whose parameters become the input schema (note the `Size`/`Milk` enums surface as
   dropdowns). It returns an `OrderTicket` record; Mocapi derives the output schema from it.
 
@@ -124,7 +124,7 @@ the server remembers nothing about you — it just resolves the handle.
 
 - **On the receipt:** `resources/read order://ORD-…`. This one is **non-cacheable** (`ttlMs: 0`) — the
   deliberate opposite of the cacheable menu.
-- **In the code:** [`OrderResources#order`](src/main/java/com/callibrity/mocapi/cafe/OrderResources.java)
+- **In the code:** [`OrderResources#order`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderResources.java)
   — a `@McpResourceTemplate` on `order://{orderId}` that looks the order up by its handle.
 
 ### 4. MRTR elicitation — the headline feature
@@ -138,7 +138,7 @@ held a connection open and waited; 2026-07-28 does a **Multi Round-Trip Request*
 - **Fill the form and click `Send & resume`.** The client re-issues the same call with the signed
   state and the answers; the original tool call picks up where it left off and finishes — fully
   stateless. The receipt prints `resume MRTR (accept)` and the ticket appears.
-- **In the code:** [`OrderTools#orderInteractive`](src/main/java/com/callibrity/mocapi/cafe/OrderTools.java)
+- **In the code:** [`OrderTools#orderInteractive`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
   — it calls `ctx.elicit(...)` to describe the form. Read the method's comment: because the handler
   re-runs on resume, pre-elicitation work must be cheap and idempotent.
 
@@ -148,7 +148,7 @@ held a connection open and waited; 2026-07-28 does a **Multi Round-Trip Request*
 command. The server hands back ready-made messages for the model to start from.
 
 - **On the receipt:** `prompts/get recommend-a-drink`; the `${mood}` placeholder came back filled in.
-- **In the code:** [`BaristaPrompts#recommend`](src/main/java/com/callibrity/mocapi/cafe/BaristaPrompts.java)
+- **In the code:** [`BaristaPrompts#recommend`](src/main/java/com/callibrity/mocapi/cafe/mcp/BaristaPrompts.java)
   — a `@McpPrompt` that compiles a `${...}` template once and renders it per call.
 
 ### Wrap-up
