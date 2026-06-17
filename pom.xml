@@ -37,8 +37,10 @@
 
     <licenses>
         <license>
-            <name>The Apache License, Version 2.0</name>
+            <name>Apache 2</name>
             <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+            <comments>A business-friendly OSS license</comments>
         </license>
     </licenses>
 
@@ -102,6 +104,7 @@
                         <licenseSet>
                             <header>com/mycila/maven/plugin/license/templates/APACHE-2.txt</header>
                             <excludes>
+                                <exclude>LICENSE</exclude>
                                 <exclude>**/*.md</exclude>
                                 <exclude>**/*.txt</exclude>
                                 <exclude>src/main/resources/**</exclude>
