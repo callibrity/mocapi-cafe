@@ -1,4 +1,19 @@
-package com.callibrity.mocapi.cafe;
+/*
+ * Copyright © 2026 Callibrity, Inc. (contactus@callibrity.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.callibrity.mocapi.cafe.domain;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -17,13 +32,13 @@ import org.springframework.stereotype.Service;
  * Nothing is stored in an MCP session — the protocol is stateless.
  */
 @Service
-public class CoffeeShop {
+public class MocapiCafe {
 
   private final Map<String, Drink> menu = new LinkedHashMap<>();
   private final Map<String, Order> orders = new ConcurrentHashMap<>();
   private final AtomicInteger sequence = new AtomicInteger(1000);
 
-  public CoffeeShop() {
+  public MocapiCafe() {
     add(new Drink("drip", "House Drip", 295, "Our rotating single-origin filter coffee."));
     add(new Drink("latte", "Caffe Latte", 425, "Espresso with steamed milk and a little foam."));
     add(new Drink("cold-brew", "Cold Brew", 450, "Steeped 18 hours, served over ice."));

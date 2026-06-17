@@ -1,6 +1,24 @@
-package com.callibrity.mocapi.cafe;
+/*
+ * Copyright © 2026 Callibrity, Inc. (contactus@callibrity.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.callibrity.mocapi.cafe.mcp;
 
 import com.callibrity.mocapi.api.resources.McpResourceTemplate;
+import com.callibrity.mocapi.cafe.domain.Drink;
+import com.callibrity.mocapi.cafe.domain.MocapiCafe;
+import com.callibrity.mocapi.cafe.domain.Order;
 import com.callibrity.mocapi.model.CacheScope;
 import com.callibrity.mocapi.model.ReadResourceResult;
 import com.callibrity.mocapi.model.ResultTypes;
@@ -18,9 +36,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderResources {
 
-  private final CoffeeShop shop;
+  private final MocapiCafe shop;
 
-  public OrderResources(CoffeeShop shop) {
+  public OrderResources(MocapiCafe shop) {
     this.shop = shop;
   }
 
