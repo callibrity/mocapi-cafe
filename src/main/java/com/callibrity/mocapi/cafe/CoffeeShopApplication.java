@@ -7,9 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * The Mocapi Cafe — a coffee-shop MCP demo.
  *
  * <p>A single, stateless Spring Boot service built with Mocapi (MCP 2026-07-28). Because the
- * protocol is now stateless, there is no session store to externalize — so unlike the old
- * 2025-11-25 demos there are no Redis / PostgreSQL / NATS "flavors". One plain app, scaled by
- * just running more copies behind a load balancer.
+ * protocol is stateless, there is no session store to stand up and no shared state between
+ * requests — scale it by running more copies behind a load balancer.
  *
  * <p>Run it, then open the storefront at {@code http://localhost:8080/} (the MCP Inspector does not
  * support 2026-07-28 yet).

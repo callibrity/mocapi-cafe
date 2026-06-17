@@ -4,8 +4,8 @@ A tiny but complete **MCP 2026-07-28** server built with [Mocapi](https://github
 written for the "You down with MCP?" talk. It models a coffee shop and exercises every primitive the
 talk covers, plus the new stateless-spec features.
 
-Because the protocol is now **stateless**, this is a single plain Spring Boot app — no Redis/Postgres
-"flavors" for session state like the old 2025-11-25 demos. Scale it by running more copies.
+Because the protocol is **stateless**, it's a single plain Spring Boot app: no session store to stand
+up, no shared state between requests. Scale it by running more copies behind a load balancer.
 
 > **Heads up:** MCP 2026-07-28 is still a **draft** (targeted for release around July 2026). It
 > isn't released in Mocapi yet, so its support currently lives on the `mcp-2026-07-28` branch (it'll
@@ -68,70 +68,95 @@ endpoint is at `http://localhost:8080/mcp`.
 
 Open **`http://localhost:8080/`**. The cafe storefront is on the left; the live wire log — styled as a
 receipt printer — is on the right. Every action is one real `/mcp` call, and the receipt prints the
-headers, `_meta`, and the response. Now follow the demo script below.
+headers, `_meta`, and the response. Now take the guided tour below.
 
-## Demo script (run of show)
+## A guided tour
 
-Read this top to bottom while you present. Each beat is **Do** the action, **Say** the line, then
-**Point** at the receipt on the right. Tip: hit **clear** on the wire log for a clean start, and keep
-the browser wide enough to show storefront and receipt side by side.
+Work through these in order. Each step pairs a click in the storefront with the MCP primitive behind
+it and the source that implements it — so you can watch it happen on the receipt (the wire log), then
+open the file and see how few lines it took. Hit **clear** on the wire log for a clean start, and keep
+the window wide enough to show the storefront and receipt side by side.
 
-**Opening — "everything here is MCP."**
-- **Say:** "This looks like a coffee shop, but there's no REST API behind it. Every pixel on the left
-  was filled in over the Model Context Protocol — and the receipt printer on the right shows the
-  actual wire traffic."
-- **Point:** the two receipts already printed at load — `discover tools` and `read menu`. "That menu
-  board? The app *read it as a resource* on startup."
+Everything you see was loaded over MCP — there's no REST API behind this page. Two receipts print
+before you touch anything: `discover tools` and `read menu`. The menu board itself is a *resource* the
+page read on startup. The browser client that makes these calls is one file:
+[`src/main/resources/static/index.html`](src/main/resources/static/index.html) — its `mcp()` helper
+shows the exact headers and `_meta` envelope every request needs.
 
-**1. The three control models.**
-- **Say:** "MCP has three primitives, split by *who is in control*. Resources are **app**-controlled
-  context. Tools are **model**-controlled actions. Prompts are **user**-controlled templates. They're
-  all on screen: the menu, the order counter, and the barista."
+### The three control models
 
-**2. Resource — app-controlled context.**
-- **Do:** click **details** on a drink (say, Caffe Latte).
-- **Say:** "A resource is context the host chooses to pull in; the model can't reach for it on its
-  own. It opens in a modal labeled with the URI it came from."
-- **Point:** the receipt shows `resources/read`, routed by `Mcp-Name: menu://drinks/latte`, and the
-  response carries `ttlMs` + `cacheScope: public` — "the menu is cacheable, so clients don't re-fetch
-  it every turn."
+MCP's primitives are split by *who is in control*, and all three are on screen at once:
 
-**3. Tool — model-controlled action, and the stateless handle.**
-- **Do:** at the Order Counter pick **latte / MEDIUM / OAT** and click **Place order**.
-- **Say:** "Tools are what the model calls to *do* something. Look at what comes back — an `orderId`.
-  That's the **handle**. There's no session here; the protocol is stateless. The id *is* the state."
-- **Point:** `tools/call place-order`; the `structuredContent` with `orderId` and `statusUri`.
+- **Resources** — **app**-controlled context (the menu board).
+- **Tools** — **model**-controlled actions (the order counter).
+- **Prompts** — **user**-controlled templates (the barista).
 
-**4. The handle round-trip.**
-- **Do:** click **status** on the ticket that just appeared.
-- **Say:** "I hand that id back as a resource URI. The server remembers nothing about me — it just
-  resolves the handle I give it."
-- **Point:** `resources/read order://ORD-…`; this one is **non-cacheable** (`ttlMs: 0`) — the
+Keep that lens as you go; each step below is one of the three.
+
+### 1. Resource — app-controlled context
+
+**Click `details` on a drink** (say, Caffe Latte). A resource is context the host chooses to pull in;
+the model can't reach for it on its own. It opens in a modal labeled with the URI it came from.
+
+- **On the receipt:** `resources/read`, routed by the header `Mcp-Name: menu://drinks/latte`. The
+  response carries `ttlMs` + `cacheScope: public` — the menu is cacheable, so clients needn't re-fetch
+  it every turn.
+- **In the code:** [`MenuResources#drink`](src/main/java/com/callibrity/mocapi/cafe/MenuResources.java)
+  — a `@McpResourceTemplate` on the parameterized URI `menu://drinks/{slug}`. The whole-menu read on
+  load is `MenuResources#menu` (`@McpResource`, `menu://drinks`) in the same file.
+
+### 2. Tool — model-controlled action, and the stateless handle
+
+**At the Order Counter pick `latte / MEDIUM / OAT` and click `Place order`.** Tools are what the model
+calls to *do* something. Notice what comes back: an `orderId`. That's the **handle** — there is no
+session, so the id *is* the state the client carries forward.
+
+- **On the receipt:** `tools/call place-order`; the `structuredContent` block with `orderId` and
+  `statusUri`.
+- **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/OrderTools.java)
+  — a `@McpTool` whose parameters become the input schema (note the `Size`/`Milk` enums surface as
+  dropdowns). It returns an `OrderTicket` record; Mocapi derives the output schema from it.
+
+### 3. The handle round-trip
+
+**Click `status` on the ticket that just appeared.** The client hands that id back as a resource URI;
+the server remembers nothing about you — it just resolves the handle.
+
+- **On the receipt:** `resources/read order://ORD-…`. This one is **non-cacheable** (`ttlMs: 0`) — the
   deliberate opposite of the cacheable menu.
+- **In the code:** [`OrderResources#order`](src/main/java/com/callibrity/mocapi/cafe/OrderResources.java)
+  — a `@McpResourceTemplate` on `order://{orderId}` that looks the order up by its handle.
 
-**5. MRTR elicitation — the headline.**
-- **Do:** click **Order interactively**.
-- **Say:** "Sometimes a tool needs more from the human mid-call. The old protocol held a connection
-  open and waited. 2026-07-28 does a **Multi Round-Trip Request** instead: the server *pauses and
-  returns*."
-- **Point:** the receipt shows `resultType: input_required`, the red **⏸ AWAITING CUSTOMER** stamp,
-  and a signed `requestState` token. "No socket stays open — the pause is encoded in that token."
-- **Do:** fill the form and click **Send & resume**.
-- **Say:** "The client collects the answer and re-issues the call with that signed state. The original
-  tool call picks up where it left off and finishes — fully stateless."
-- **Point:** `resume MRTR (accept)` → the ticket prints.
+### 4. MRTR elicitation — the headline feature
 
-**6. Prompt — user-controlled template.**
-- **Do:** type a mood (e.g. *cozy*) and click **Recommend**.
-- **Say:** "Prompts are invoked by a *person* — think slash command. The server hands back ready-made
-  messages for the model to start from."
-- **Point:** `prompts/get recommend-a-drink`; the `${mood}` placeholder came back filled in.
+**Click `Order interactively`.** Sometimes a tool needs more from the human mid-call. The old protocol
+held a connection open and waited; 2026-07-28 does a **Multi Round-Trip Request** instead — the server
+*pauses and returns*.
 
-**Close.**
-- **Say:** "Stateless core, handles instead of sessions, round-trips instead of held connections —
-  scale it by just running more copies, because there's nothing to share. And sampling and
-  server-side logging are gone in this draft. That's MCP 2026-07-28."
-- *Optional kicker:* drop to a terminal and run the `curl` below to prove it's plain HTTP underneath.
+- **On the receipt:** `resultType: input_required`, the red **⏸ AWAITING CUSTOMER** stamp, and a
+  signed `requestState` token. No socket stays open; the paused state is encoded in that token.
+- **Fill the form and click `Send & resume`.** The client re-issues the same call with the signed
+  state and the answers; the original tool call picks up where it left off and finishes — fully
+  stateless. The receipt prints `resume MRTR (accept)` and the ticket appears.
+- **In the code:** [`OrderTools#orderInteractive`](src/main/java/com/callibrity/mocapi/cafe/OrderTools.java)
+  — it calls `ctx.elicit(...)` to describe the form. Read the method's comment: because the handler
+  re-runs on resume, pre-elicitation work must be cheap and idempotent.
+
+### 5. Prompt — user-controlled template
+
+**Type a mood (e.g. `cozy`) and click `Recommend`.** Prompts are invoked by a *person* — think slash
+command. The server hands back ready-made messages for the model to start from.
+
+- **On the receipt:** `prompts/get recommend-a-drink`; the `${mood}` placeholder came back filled in.
+- **In the code:** [`BaristaPrompts#recommend`](src/main/java/com/callibrity/mocapi/cafe/BaristaPrompts.java)
+  — a `@McpPrompt` that compiles a `${...}` template once and renders it per call.
+
+### Wrap-up
+
+Stateless core, handles instead of sessions, round-trips instead of held connections — scale it by
+running more copies, because there's nothing to share. Sampling and server-side logging are gone in
+this draft (see [Notes](#notes)). To prove it's plain HTTP underneath, drop to a terminal and run the
+`curl` example below.
 
 ## Other ways to drive it
 
