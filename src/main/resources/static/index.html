@@ -197,7 +197,7 @@
   .tickets { margin-top: 16px; }
   .tickets .eyebrow { margin-bottom: 6px; }
   .ticket {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     background: #fdf9f1;
     border: 1px dashed var(--kraft-edge);
     border-radius: 6px;
@@ -208,6 +208,18 @@
   .ticket .id { font-family: var(--font-mono); font-weight: 700; color: var(--caramel-dk); }
   .ticket .sum { flex: 1; color: #5b4731; }
   .empty { color: #7c6038; font-size: 13px; font-style: italic; }
+
+  /* brew progress bar — fills as notifications/progress arrive over SSE */
+  .brew { flex-basis: 100%; display: none; }
+  .brew.show { display: block; }
+  .brew-track {
+    height: 8px; background: #e7dcc4; border-radius: 5px; overflow: hidden; margin-top: 4px;
+  }
+  .brew-fill {
+    height: 100%; width: 0; background: var(--caramel); border-radius: 5px;
+    transition: width 0.3s ease;
+  }
+  .brew-step { font-size: 11.5px; color: #7c6038; font-style: italic; margin-top: 3px; }
 
   /* ---- Barista (paper) --------------------------------------------------- */
   .barista { background: #fff; border: 1px solid #e6dcc6; }
@@ -555,6 +567,19 @@
     wire.scrollTop = wire.scrollHeight;
   }
 
+  // A streamed progress notification — printed as a thin receipt line as it arrives.
+  function logProgress(p) {
+    ensureFeed();
+    var x = document.createElement("div");
+    x.className = "xchg";
+    x.innerHTML =
+      '<div class="line recv-pause">&#8635; notifications/progress &middot; ' +
+        p.progress + "/" + p.total + '</div>' +
+      '<div class="line hdr">  ' + esc(p.message || "") + '</div>';
+    wire.appendChild(x);
+    wire.scrollTop = wire.scrollHeight;
+  }
+
   document.getElementById("clearWire").addEventListener("click", function () {
     wire.innerHTML = '<p class="wire-empty">Receipts print here. Click anything on the left.</p>';
     wiredOnce = false;
@@ -669,10 +694,19 @@
     if (host.querySelector(".empty")) host.innerHTML = "";
     var el = document.createElement("div");
     el.className = "ticket";
-    el.innerHTML = '<span class="id">' + esc(t.orderId) + '</span>' +
+    el.innerHTML =
+      '<span class="id">' + esc(t.orderId) + '</span>' +
       '<span class="sum">' + esc(t.summary) + '</span>' +
-      '<button class="btn-link">status</button>';
-    el.querySelector("button").addEventListener("click", function () { readOrder(t.orderId); });
+      '<button class="btn-link" data-act="brew">brew &#9203;</button>' +
+      '<button class="btn-link" data-act="status">status</button>' +
+      '<div class="brew"><div class="brew-track"><div class="brew-fill"></div></div>' +
+        '<div class="brew-step"></div></div>';
+    el.querySelector('[data-act="status"]').addEventListener("click", function () {
+      readOrder(t.orderId);
+    });
+    el.querySelector('[data-act="brew"]').addEventListener("click", function () {
+      brewOrder(t.orderId, el);
+    });
     host.appendChild(el);
   }
 
@@ -680,6 +714,86 @@
     var uri = "order://" + id;
     var r = await mcp("resources/read", { name: uri, params: { uri: uri }, label: "read " + uri });
     openDetail(uri, r.result.contents[0].text);
+  }
+
+  // ---- Progress / SSE streaming (the brew tool) --------------------------
+  // The native EventSource is GET-only; MCP needs POST + routing headers, so we use
+  // @microsoft/fetch-event-source (loaded on demand from a CDN — the one place this
+  // page reaches the network at runtime). progressToken in _meta opts us into the
+  // notifications/progress events the server streams ahead of the final result.
+  var _fetchEventSource = null;
+  async function loadSse() {
+    if (!_fetchEventSource) {
+      var mod = await import(
+        "https://cdn.jsdelivr.net/npm/@microsoft/fetch-event-source@2.0.1/+esm");
+      _fetchEventSource = mod.fetchEventSource;
+    }
+    return _fetchEventSource;
+  }
+
+  async function brewOrder(orderId, ticketEl) {
+    var fetchEventSource;
+    try {
+      fetchEventSource = await loadSse();
+    } catch (e) {
+      toast("Couldn't load the SSE client (offline?) — brew needs the CDN.");
+      return;
+    }
+    var brewEl = ticketEl.querySelector(".brew");
+    var fill = ticketEl.querySelector(".brew-fill");
+    var step = ticketEl.querySelector(".brew-step");
+    brewEl.classList.add("show");
+    fill.style.width = "0";
+    step.textContent = "Starting the brew…";
+
+    var meta = metaBlock(null);
+    meta.progressToken = "brew-" + orderId;
+    var envelope = {
+      jsonrpc: "2.0", id: nextId(), method: "tools/call",
+      params: { name: "brew", arguments: { orderId: orderId }, _meta: meta }
+    };
+    logSent("brew " + orderId, { "Mcp-Method": "tools/call", "Mcp-Name": "brew" }, envelope);
+
+    try {
+      await fetchEventSource(ENDPOINT, {
+        method: "POST",
+        openWhenHidden: true,
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream",
+          "MCP-Protocol-Version": PROTOCOL,
+          "Mcp-Method": "tools/call",
+          "Mcp-Name": "brew"
+        },
+        body: JSON.stringify(envelope),
+        onmessage: function (ev) {
+          if (!ev.data) return;
+          var msg = JSON.parse(ev.data);
+          if (msg.method === "notifications/progress") {
+            var p = msg.params;
+            var pct = p.total ? Math.round((p.progress / p.total) * 100) : 0;
+            fill.style.width = pct + "%";
+            step.textContent = (p.message || "") + " (" + p.progress + "/" + p.total + ")";
+            logProgress(p);
+          } else if (msg.result || msg.error) {
+            logRecv(200, msg, msg.error ? "err" : "ok");
+            if (msg.result && msg.result.structuredContent) {
+              var sc = msg.result.structuredContent;
+              ticketEl.querySelector(".sum").textContent = sc.summary;
+              fill.style.width = "100%";
+              step.textContent = "Ready ☕";
+            }
+          }
+        },
+        onclose: function () { throw new Error("__brew_done__"); },
+        onerror: function (err) { throw err; }
+      });
+    } catch (e) {
+      if (e && e.message !== "__brew_done__") {
+        logRecv(0, { error: { message: String(e) } }, "err");
+        step.textContent = "Brew failed.";
+      }
+    }
   }
 
   // ---- Resource-read detail modal ---------------------------------------

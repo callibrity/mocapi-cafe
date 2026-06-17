@@ -23,6 +23,7 @@ to drive the demo; raw `curl` (documented below) is the other.
 |------|-------------|-----------|
 | `OrderTools#placeOrder` | **Tool** — model-controlled action; returns a server-issued `orderId` (the stateless *handle*) | Tools / Stateless |
 | `OrderTools#orderInteractive` | **Elicitation** via **Multi Round-Trip Requests** — pauses mid-call to ask the human, then resumes | Elicitation / MRTR |
+| `OrderTools#brew` | **Progress notifications** — streams `notifications/progress` on the SSE response, then returns the result | Progress / Streaming |
 | `MenuResources#menu` | **Resource** — app-controlled context; `public` + `ttlMs` so clients can **cache** it | Resources / Deprecations(caching) |
 | `MenuResources#drink` | **Resource template** — parameterized URI `menu://drinks/{slug}` | Resources detail |
 | `OrderResources#order` | **Resource template** `order://{orderId}` — reads back the handle `place-order` returned; non-cacheable (`ttlMs 0`) | Resources / Stateless |
@@ -153,6 +154,24 @@ command. The server hands back ready-made messages for the model to start from.
 - **On the receipt:** `prompts/get recommend-a-drink`; the `${mood}` placeholder came back filled in.
 - **In the code:** [`BaristaPrompts#recommend`](src/main/java/com/callibrity/mocapi/cafe/mcp/BaristaPrompts.java)
   — a `@McpPrompt` that compiles a `${...}` template once and renders it per call.
+
+### 6. Streaming progress — the brew tool
+
+**On a ticket, click `brew`.** A long-running tool can report **progress** while it works. Under
+Streamable HTTP those updates arrive as `notifications/progress` events on the request's **SSE
+response stream**, ahead of the final result — so a progress bar fills as the brew proceeds.
+
+- **On the receipt:** a `brew` request, then a run of `↻ notifications/progress` lines
+  (`1/4 Grinding beans` … `4/4 Finishing the pour`), then the final result with the order flipped to
+  `READY`.
+- **In the code:** [`OrderTools#brew`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
+  — `ctx.longProgress(total).emit(n, "step")`. Progress only goes on the wire when the client sends a
+  `progressToken` in `_meta`; otherwise the emitter is a silent no-op.
+- **The one client wrinkle:** reading an SSE stream needs **POST + headers**, which the browser's
+  native `EventSource` can't do (it's GET-only). The storefront uses
+  [`@microsoft/fetch-event-source`](https://github.com/Azure/fetch-event-source) for this single call,
+  loaded on demand from a CDN — the only spot the page touches the network at runtime. Every other
+  call is a plain buffered `fetch`.
 
 ### Wrap-up
 

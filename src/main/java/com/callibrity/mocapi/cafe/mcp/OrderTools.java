@@ -25,6 +25,7 @@ import com.callibrity.mocapi.cafe.domain.Size;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,6 +57,37 @@ public class OrderTools {
       @Schema(description = "Milk preference") Milk milk) {
     Order order = cafe.placeOrder(drink, size, milk);
     return OrderTicket.of(order, cafe);
+  }
+
+  /**
+   * Brews a placed order, reporting <b>progress notifications</b> as it works. The progress emitter
+   * only sends to the wire when the client supplied a {@code progressToken} in {@code _meta} — over
+   * the Streamable HTTP transport those notifications arrive on the request's SSE response stream,
+   * ahead of the final result. Without a token the emitter validates but stays silent.
+   */
+  @McpTool(name = "brew", description = "Brew a placed order, reporting progress as it goes.")
+  public OrderTicket brew(
+      @Schema(description = "Order id from place-order, e.g. 'ORD-1001'") @NotBlank String orderId,
+      McpToolContext ctx) {
+    cafe.findOrder(orderId)
+        .orElseThrow(() -> new IllegalArgumentException("No such order: " + orderId));
+    List<String> steps =
+        List.of("Grinding beans", "Pulling espresso", "Steaming milk", "Finishing the pour");
+    var progress = ctx.longProgress((long) steps.size());
+    for (int i = 0; i < steps.size(); i++) {
+      pause();
+      progress.emit(i + 1, steps.get(i));
+    }
+    return OrderTicket.of(cafe.markReady(orderId), cafe);
+  }
+
+  /** Simulates barista work so the progress steps are visible in a demo. */
+  private static void pause() {
+    try {
+      Thread.sleep(600);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   @McpTool(

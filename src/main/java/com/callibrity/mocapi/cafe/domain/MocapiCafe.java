@@ -70,4 +70,13 @@ public class MocapiCafe {
   public Optional<Order> findOrder(String id) {
     return Optional.ofNullable(orders.get(id));
   }
+
+  /** Marks a placed order as brewed and ready. Returns the updated order. */
+  public Order markReady(String id) {
+    Order order =
+        findOrder(id).orElseThrow(() -> new IllegalArgumentException("No such order: " + id));
+    Order ready = new Order(order.id(), order.drinkSlug(), order.size(), order.milk(), "READY");
+    orders.put(id, ready);
+    return ready;
+  }
 }
