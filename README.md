@@ -25,7 +25,7 @@ to drive the demo; raw `curl` (documented below) is the other.
 | `OrderTools#orderInteractive` | **Elicitation** via **Multi Round-Trip Requests** — pauses mid-call to ask the human, then resumes | Elicitation / MRTR |
 | `MenuResources#menu` | **Resource** — app-controlled context; `public` + `ttlMs` so clients can **cache** it | Resources / Deprecations(caching) |
 | `MenuResources#drink` | **Resource template** — parameterized URI `menu://drinks/{slug}` | Resources detail |
-| `OrderResources#order` | **Resource template** `order://{orderId}` — reads back the handle `place-order` returned; `private`, non-cacheable | Resources / Stateless |
+| `OrderResources#order` | **Resource template** `order://{orderId}` — reads back the handle `place-order` returned; non-cacheable (`ttlMs 0`) | Resources / Stateless |
 | `BaristaPrompts#recommend` | **Prompt** — user-controlled template (`recommend-a-drink`) | Prompts detail |
 
 The three control models line up with the overview slide: tools = **model**-controlled, resources =
@@ -64,23 +64,74 @@ mvn spring-boot:run
 The app starts on port 8080: the storefront is at `http://localhost:8080/` and the stateless MCP
 endpoint is at `http://localhost:8080/mcp`.
 
-### 3. Drive it from the browser
+### 3. Open the storefront
 
 Open **`http://localhost:8080/`**. The cafe storefront is on the left; the live wire log — styled as a
-receipt printer — is on the right. Each step below is one real `/mcp` call. Watch the receipt print
-the request headers, `_meta`, and the response:
+receipt printer — is on the right. Every action is one real `/mcp` call, and the receipt prints the
+headers, `_meta`, and the response. Now follow the demo script below.
 
-1. The **menu** (top-left chalkboard) is populated by reading the `menu://drinks` **resource** on
-   load — the rows you see arrived over the wire.
-2. Click **details** on any drink → reads the `menu://drinks/{slug}` **resource template**; the result
-   opens in a modal labeled with the resource URI it came from.
-3. At the **Order Counter**, pick a drink, size, and milk, then **Place order** → calls the
-   `place-order` **tool**. The ticket's `orderId` is the stateless **handle**.
-4. Click **status** on a ticket → reads `order://{id}` — the same handle, read back as a resource.
-5. Click **Order interactively** → triggers **MRTR elicitation**: the server pauses (a red
-   **⏸ AWAITING CUSTOMER** stamp prints on the receipt), a form pops up, and answering it **resumes**
-   the original call with the signed `requestState`.
-6. **Ask the Barista** with a mood → renders the `recommend-a-drink` **prompt** for the model.
+## Demo script (run of show)
+
+Read this top to bottom while you present. Each beat is **Do** the action, **Say** the line, then
+**Point** at the receipt on the right. Tip: hit **clear** on the wire log for a clean start, and keep
+the browser wide enough to show storefront and receipt side by side.
+
+**Opening — "everything here is MCP."**
+- **Say:** "This looks like a coffee shop, but there's no REST API behind it. Every pixel on the left
+  was filled in over the Model Context Protocol — and the receipt printer on the right shows the
+  actual wire traffic."
+- **Point:** the two receipts already printed at load — `discover tools` and `read menu`. "That menu
+  board? The app *read it as a resource* on startup."
+
+**1. The three control models.**
+- **Say:** "MCP has three primitives, split by *who is in control*. Resources are **app**-controlled
+  context. Tools are **model**-controlled actions. Prompts are **user**-controlled templates. They're
+  all on screen: the menu, the order counter, and the barista."
+
+**2. Resource — app-controlled context.**
+- **Do:** click **details** on a drink (say, Caffe Latte).
+- **Say:** "A resource is context the host chooses to pull in; the model can't reach for it on its
+  own. It opens in a modal labeled with the URI it came from."
+- **Point:** the receipt shows `resources/read`, routed by `Mcp-Name: menu://drinks/latte`, and the
+  response carries `ttlMs` + `cacheScope: public` — "the menu is cacheable, so clients don't re-fetch
+  it every turn."
+
+**3. Tool — model-controlled action, and the stateless handle.**
+- **Do:** at the Order Counter pick **latte / MEDIUM / OAT** and click **Place order**.
+- **Say:** "Tools are what the model calls to *do* something. Look at what comes back — an `orderId`.
+  That's the **handle**. There's no session here; the protocol is stateless. The id *is* the state."
+- **Point:** `tools/call place-order`; the `structuredContent` with `orderId` and `statusUri`.
+
+**4. The handle round-trip.**
+- **Do:** click **status** on the ticket that just appeared.
+- **Say:** "I hand that id back as a resource URI. The server remembers nothing about me — it just
+  resolves the handle I give it."
+- **Point:** `resources/read order://ORD-…`; this one is **non-cacheable** (`ttlMs: 0`) — the
+  deliberate opposite of the cacheable menu.
+
+**5. MRTR elicitation — the headline.**
+- **Do:** click **Order interactively**.
+- **Say:** "Sometimes a tool needs more from the human mid-call. The old protocol held a connection
+  open and waited. 2026-07-28 does a **Multi Round-Trip Request** instead: the server *pauses and
+  returns*."
+- **Point:** the receipt shows `resultType: input_required`, the red **⏸ AWAITING CUSTOMER** stamp,
+  and a signed `requestState` token. "No socket stays open — the pause is encoded in that token."
+- **Do:** fill the form and click **Send & resume**.
+- **Say:** "The client collects the answer and re-issues the call with that signed state. The original
+  tool call picks up where it left off and finishes — fully stateless."
+- **Point:** `resume MRTR (accept)` → the ticket prints.
+
+**6. Prompt — user-controlled template.**
+- **Do:** type a mood (e.g. *cozy*) and click **Recommend**.
+- **Say:** "Prompts are invoked by a *person* — think slash command. The server hands back ready-made
+  messages for the model to start from."
+- **Point:** `prompts/get recommend-a-drink`; the `${mood}` placeholder came back filled in.
+
+**Close.**
+- **Say:** "Stateless core, handles instead of sessions, round-trips instead of held connections —
+  scale it by just running more copies, because there's nothing to share. And sampling and
+  server-side logging are gone in this draft. That's MCP 2026-07-28."
+- *Optional kicker:* drop to a terminal and run the `curl` below to prove it's plain HTTP underneath.
 
 ## Other ways to drive it
 

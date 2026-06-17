@@ -11,8 +11,8 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.callibrity.demo</groupId>
-    <artifactId>coffeeshop-mcp</artifactId>
+    <groupId>com.callibrity.mocapi</groupId>
+    <artifactId>mocapi-cafe</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>The Mocapi Cafe</name>
     <description>A stateless MCP server built with Mocapi, demonstrating the MCP 2026-07-28 primitives</description>
