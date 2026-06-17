@@ -23,6 +23,8 @@ import com.callibrity.mocapi.cafe.domain.MocapiCafe;
 import com.callibrity.mocapi.cafe.domain.Order;
 import com.callibrity.mocapi.cafe.domain.Size;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.stereotype.Component;
 
 /**
@@ -44,7 +46,12 @@ public class OrderTools {
 
   @McpTool(name = "place-order", description = "Place an order for a drink and return an order ticket.")
   public OrderTicket placeOrder(
-      @Schema(description = "Menu slug, e.g. 'latte' or 'cold-brew'") String drink,
+      @Schema(description = "Menu slug, e.g. 'latte' or 'cold-brew'")
+          @NotBlank
+          @Pattern(
+              regexp = "^[a-z-]+$",
+              message = "must be a lowercase menu slug like 'latte' or 'cold-brew'")
+          String drink,
       @Schema(description = "Cup size") Size size,
       @Schema(description = "Milk preference") Milk milk) {
     Order order = shop.placeOrder(drink, size, milk);

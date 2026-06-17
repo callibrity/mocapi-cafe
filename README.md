@@ -35,6 +35,7 @@ The three control models line up with the overview slide: tools = **model**-cont
 
 - **JDK 25** (Mocapi targets Java 25)
 - **Maven 3.9+**
+- **Docker** — optional, only for the Jaeger tracing demo (see [Observability & ops](#observability--ops))
 
 ## Quickstart
 
@@ -116,6 +117,9 @@ session, so the id *is* the state the client carries forward.
 - **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
   — a `@McpTool` whose parameters become the input schema (note the `Size`/`Milk` enums surface as
   dropdowns). It returns an `OrderTicket` record; Mocapi derives the output schema from it.
+- **Bad input is rejected:** `drink` carries Jakarta `@NotBlank`/`@Pattern` constraints
+  (`mocapi-jakarta-validation`). Call `place-order` with `drink: "LATTE!"` and you get a tool error
+  result carrying the constraint message — no handler code runs.
 
 ### 3. The handle round-trip
 
@@ -203,6 +207,36 @@ Three things the server enforces — easy to get wrong by hand:
   `-32602 Missing required _meta envelope on request params`.
 - **`Mcp-Name` is required on every routed method**, not just `tools/call`: it's the resource URI for
   `resources/read` (e.g. `Mcp-Name: menu://drinks`) and the prompt name for `prompts/get`.
+
+## Observability & ops
+
+### Distributed tracing with Jaeger
+
+`mocapi-otel` emits a two-layer trace for every tool/prompt/resource call — an outer `jsonrpc.server`
+span enriched with `mcp.*` tags, wrapping an inner `mcp.handler.execution` span with GenAI / resource
+attributes. The demo is already configured to export OTLP traces to `http://localhost:4318`. Start
+Jaeger's all-in-one (it has a built-in OTLP receiver and a trace UI), **then** run the demo:
+
+```bash
+docker run --rm --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:1.76.0
+```
+
+Open the UI at **http://localhost:16686**, click around the storefront, then pick service
+**`mocapi-cafe`** and hit *Find Traces* to see each `/mcp` call as a span tree. (OTLP **metrics** are
+turned off in `application.properties` — Jaeger is traces-only and 404s on the metrics path.)
+
+### `/actuator/mcp`
+
+`mocapi-actuator` adds a read-only inventory endpoint — a snapshot of every registered tool, prompt,
+resource, and template (with input-schema digests) without opening an MCP session:
+
+```bash
+curl -s localhost:8080/actuator/mcp | jq
+```
 
 ## Notes
 

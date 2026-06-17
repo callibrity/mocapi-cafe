@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version>
+        <version>4.0.5</version>
         <relativePath/>
     </parent>
 
@@ -80,6 +80,31 @@
         <dependency>
             <groupId>com.callibrity.mocapi</groupId>
             <artifactId>mocapi-prompts-spring</artifactId>
+        </dependency>
+
+        <!-- Jakarta Bean Validation on handler params; a violation comes back as a tool
+             error result (isError=true) carrying the constraint message. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-jakarta-validation</artifactId>
+        </dependency>
+
+        <!-- OpenTelemetry: a two-layer trace per tool/prompt/resource call. Pulls in
+             spring-boot-starter-opentelemetry, which provides the OTLP span exporter in
+             Spring Boot 4 — no separate opentelemetry-exporter-otlp dependency needed. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-otel</artifactId>
+        </dependency>
+
+        <!-- Actuator + the /actuator/mcp endpoint: a read-only snapshot of registered handlers. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-actuator</artifactId>
         </dependency>
     </dependencies>
 
