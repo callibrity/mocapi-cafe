@@ -117,9 +117,8 @@ session, so the id *is* the state the client carries forward.
 - **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
   — a `@McpTool` whose parameters become the input schema (note the `Size`/`Milk` enums surface as
   dropdowns). It returns an `OrderTicket` record; Mocapi derives the output schema from it.
-- **Bad input is rejected:** `drink` carries Jakarta `@NotBlank`/`@Pattern` constraints
-  (`mocapi-jakarta-validation`). Call `place-order` with `drink: "LATTE!"` and you get a tool error
-  result carrying the constraint message — no handler code runs.
+- **Bad input is rejected** before the handler runs — `drink` is validated with Jakarta constraints;
+  see [The production extras](#the-production-extras).
 
 ### 3. The handle round-trip
 
@@ -160,7 +159,8 @@ command. The server hands back ready-made messages for the model to start from.
 Stateless core, handles instead of sessions, round-trips instead of held connections — scale it by
 running more copies, because there's nothing to share. Sampling and server-side logging are gone in
 this draft (see [Notes](#notes)). To prove it's plain HTTP underneath, drop to a terminal and run the
-`curl` example below.
+`curl` example below — then see [The production extras](#the-production-extras) for the validation,
+tracing, and ops endpoints Mocapi layers on top.
 
 ## Other ways to drive it
 
@@ -208,36 +208,72 @@ Three things the server enforces — easy to get wrong by hand:
 - **`Mcp-Name` is required on every routed method**, not just `tools/call`: it's the resource URI for
   `resources/read` (e.g. `Mcp-Name: menu://drinks`) and the prompt name for `prompts/get`.
 
-## Observability & ops
+## The production extras
 
-### Distributed tracing with Jaeger
+The six primitives above are the protocol. Mocapi also ships the boring-but-essential production
+pieces as drop-in modules — this demo wires three. Each is a dependency plus a touch of config; no
+handler code changes.
 
-`mocapi-otel` emits a two-layer trace for every tool/prompt/resource call — an outer `jsonrpc.server`
+### Input validation — reject bad arguments before the handler runs
+
+Mocapi reads Jakarta Bean Validation constraints on handler parameters and turns a violation into a
+tool error, so your handler only ever sees valid input.
+
+- **Try it:** re-run the [`curl` above](#calling-it-with-curl-the-2026-07-28-shape) but change the
+  drink to something that breaks the pattern — e.g. `"drink": "LATTE!"`.
+- **What you get:** a result with `isError: true` whose text is the constraint message —
+  `placeOrder.drink: must be a lowercase menu slug like 'latte' or 'cold-brew'`. The handler body
+  never ran.
+- **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
+  — `drink` carries `@NotBlank` + `@Pattern`. **Dependency:** `mocapi-jakarta-validation`.
+
+### Distributed tracing — a span tree per call, in Jaeger
+
+`mocapi-otel` emits a two-layer trace for every tool/prompt/resource call: an outer `jsonrpc.server`
 span enriched with `mcp.*` tags, wrapping an inner `mcp.handler.execution` span with GenAI / resource
-attributes. The demo is already configured to export OTLP traces to `http://localhost:4318`. Start
-Jaeger v2 (built on the OTel Collector — OTLP receivers are on by default, with a trace UI),
-**then** run the demo:
+attributes. The demo already exports OTLP traces to `http://localhost:4318`.
 
-```bash
-docker run --rm --name jaeger \
-  -p 16686:16686 \
-  -p 4317:4317 \
-  -p 4318:4318 \
-  jaegertracing/jaeger:latest
-```
+- **Try it:** start Jaeger v2 (built on the OTel Collector — OTLP receivers on by default, plus a
+  trace UI), **then** run the demo:
+  ```bash
+  docker run --rm --name jaeger \
+    -p 16686:16686 \
+    -p 4317:4317 \
+    -p 4318:4318 \
+    jaegertracing/jaeger:latest
+  ```
+- **What you get:** at **http://localhost:16686**, pick service **`mocapi-cafe`** → *Find Traces*.
+  A `place-order` looks like:
+  ```
+  mocapi-cafe  http post /mcp        ← Spring MVC SERVER span (the HTTP POST)
+    └─ mocapi-cafe  tools/call        ← jsonrpc.server span (mcp.* tags)
+         └─ mocapi-cafe  place-order   ← mcp.handler.execution span (the handler)
+  ```
+  Click the handler span to see its **Tags** — OTel GenAI/MCP semantic-convention attributes like
+  `gen_ai.tool.name`, `mcp.method.name`, `mcp.client.name`, `mcp.handler.kind`.
+- **Config:** the tracing properties in `application.properties`. **Dependency:** `mocapi-otel`.
+  OTLP **metrics** are turned off there — Jaeger is traces-only and 404s on the metrics path; point
+  at a metrics-capable backend and flip them on to get the handler-duration meters too.
 
-Open the UI at **http://localhost:16686**, click around the storefront, then pick service
-**`mocapi-cafe`** and hit *Find Traces* to see each `/mcp` call as a span tree. (OTLP **metrics** are
-turned off in `application.properties` — Jaeger is traces-only and 404s on the metrics path.)
+### Ops inventory — `/actuator/mcp`
 
-### `/actuator/mcp`
+`mocapi-actuator` adds a read-only Spring Boot Actuator endpoint: a snapshot of every registered tool,
+prompt, resource, and template (with input-schema digests) without opening an MCP session — handy for
+"what's deployed here?" checks.
 
-`mocapi-actuator` adds a read-only inventory endpoint — a snapshot of every registered tool, prompt,
-resource, and template (with input-schema digests) without opening an MCP session:
+- **Try it:**
+  ```bash
+  curl -s localhost:8080/actuator/mcp | jq
+  ```
+- **What you get:** `server` info, a `counts` block, and arrays of `tools` / `prompts` / `resources` /
+  `resourceTemplates`. **Config:** `management.endpoints.web.exposure.include=health,info,mcp`.
+  **Dependencies:** `mocapi-actuator` + `spring-boot-starter-actuator`.
 
-```bash
-curl -s localhost:8080/actuator/mcp | jq
-```
+### There's more in the box
+
+Not wired here, but a dependency away: MDC log correlation (`mocapi-logging`), audit logging
+(`mocapi-audit`), argument/variable completion (`completion/complete`), and scope/role authorization
+guards (`mocapi-spring-security-guards` + `mocapi-oauth2`).
 
 ## Notes
 
