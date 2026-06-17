@@ -697,17 +697,23 @@
     el.innerHTML =
       '<span class="id">' + esc(t.orderId) + '</span>' +
       '<span class="sum">' + esc(t.summary) + '</span>' +
-      '<button class="btn-link" data-act="brew">brew &#9203;</button>' +
       '<button class="btn-link" data-act="status">status</button>' +
       '<div class="brew"><div class="brew-track"><div class="brew-fill"></div></div>' +
         '<div class="brew-step"></div></div>';
     el.querySelector('[data-act="status"]').addEventListener("click", function () {
       readOrder(t.orderId);
     });
-    el.querySelector('[data-act="brew"]').addEventListener("click", function () {
-      brewOrder(t.orderId, el);
-    });
     host.appendChild(el);
+    return el;
+  }
+
+  // The default ordering path: place the order, then immediately brew it so progress
+  // streams without an extra click. (place-order and brew remain separate tools — an
+  // agent or curl can place without brewing.)
+  function placeAndBrew(ticket) {
+    var el = addTicket(ticket);
+    if (ticket.orderId) brewOrder(ticket.orderId, el);
+    return el;
   }
 
   async function readOrder(id) {
@@ -845,7 +851,7 @@
     };
     var r = await mcp("tools/call", { name: "place-order", params: { name: "place-order", arguments: args }, label: "place-order" });
     if (r.result && r.result.structuredContent) {
-      addTicket(r.result.structuredContent);
+      placeAndBrew(r.result.structuredContent);
       toast("Order placed: " + r.result.structuredContent.orderId);
     }
   });
@@ -923,7 +929,7 @@
       label: "resume MRTR (" + action + ")"
     });
     var t = r.result && r.result.structuredContent;
-    if (t && t.orderId) { addTicket(t); toast("Order placed: " + t.orderId); }
+    if (t && t.orderId) { placeAndBrew(t); toast("Order placed: " + t.orderId); }
     else if (t) { toast(t.summary || "Order cancelled."); }
   }
 

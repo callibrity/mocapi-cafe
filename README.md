@@ -118,6 +118,9 @@ session, so the id *is* the state the client carries forward.
 - **In the code:** [`OrderTools#placeOrder`](src/main/java/com/callibrity/mocapi/cafe/mcp/OrderTools.java)
   — a `@McpTool` whose parameters become the input schema (note the `Size`/`Milk` enums surface as
   dropdowns). It returns an `OrderTicket` record; Mocapi derives the output schema from it.
+- The storefront then **auto-brews** the order on that handle — watch the progress bar fill (that's
+  step 6). `place-order` and `brew` stay separate tools, though: an agent or `curl` can place without
+  brewing.
 - **Bad input is rejected** before the handler runs — `drink` is validated with Jakarta constraints;
   see [The production extras](#the-production-extras).
 
@@ -157,9 +160,10 @@ command. The server hands back ready-made messages for the model to start from.
 
 ### 6. Streaming progress — the brew tool
 
-**On a ticket, click `brew`.** A long-running tool can report **progress** while it works. Under
-Streamable HTTP those updates arrive as `notifications/progress` events on the request's **SSE
-response stream**, ahead of the final result — so a progress bar fills as the brew proceeds.
+**This already happened in step 2:** placing an order auto-brews it, and that brew is a separate
+`tools/call`. A long-running tool can report **progress** while it works; under Streamable HTTP those
+updates arrive as `notifications/progress` events on the request's **SSE response stream**, ahead of
+the final result — so the ticket's progress bar fills as the brew proceeds.
 
 - **On the receipt:** a `brew` request, then a run of `↻ notifications/progress` lines
   (`1/4 Grinding beans` … `4/4 Finishing the pour`), then the final result with the order flipped to
