@@ -74,7 +74,7 @@ public class MenuResources {
     Drink drink =
         shop.findDrink(slug).orElseThrow(() -> new IllegalArgumentException("No such drink: " + slug));
     String markdown =
-        "# %s\n\n%s\n\n**Price:** %s".formatted(drink.name(), drink.description(), drink.price());
+        "# %s%n%n%s%n%n**Price:** %s".formatted(drink.name(), drink.description(), drink.price());
     return new ReadResourceResult(
         List.of(new TextResourceContents("menu://drinks/" + slug, "text/markdown", markdown)),
         ONE_MINUTE_MS,

@@ -38,10 +38,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderTools {
 
-  private final MocapiCafe shop;
+  private final MocapiCafe cafe;
 
-  public OrderTools(MocapiCafe shop) {
-    this.shop = shop;
+  public OrderTools(MocapiCafe cafe) {
+    this.cafe = cafe;
   }
 
   @McpTool(name = "place-order", description = "Place an order for a drink and return an order ticket.")
@@ -54,15 +54,15 @@ public class OrderTools {
           String drink,
       @Schema(description = "Cup size") Size size,
       @Schema(description = "Milk preference") Milk milk) {
-    Order order = shop.placeOrder(drink, size, milk);
-    return OrderTicket.of(order, shop);
+    Order order = cafe.placeOrder(drink, size, milk);
+    return OrderTicket.of(order, cafe);
   }
 
   @McpTool(
       name = "order-interactive",
       description = "Order a drink, asking you for any details that are missing.")
   public OrderTicket orderInteractive(McpToolContext ctx) {
-    var drinkSlugs = shop.menu().stream().map(Drink::slug).toList();
+    var drinkSlugs = cafe.menu().stream().map(Drink::slug).toList();
 
     // The server pauses here and asks the human. With MRTR the handler re-runs on retry,
     // so keep pre-elicitation work cheap and idempotent.
@@ -80,11 +80,11 @@ public class OrderTools {
     }
 
     Order order =
-        shop.placeOrder(
+        cafe.placeOrder(
             answers.getChoice("drink"),
             answers.getChoice("size", Size.class),
             answers.getChoice("milk", Milk.class));
-    return OrderTicket.of(order, shop);
+    return OrderTicket.of(order, cafe);
   }
 
   /** What the tool hands back. {@code statusUri} is the resource-template URI for this order. */

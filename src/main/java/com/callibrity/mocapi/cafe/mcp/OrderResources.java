@@ -36,10 +36,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderResources {
 
-  private final MocapiCafe shop;
+  private final MocapiCafe cafe;
 
-  public OrderResources(MocapiCafe shop) {
-    this.shop = shop;
+  public OrderResources(MocapiCafe cafe) {
+    this.cafe = cafe;
   }
 
   @McpResourceTemplate(
@@ -49,9 +49,9 @@ public class OrderResources {
       mimeType = "text/markdown")
   public ReadResourceResult order(String orderId) {
     Order order =
-        shop.findOrder(orderId)
+        cafe.findOrder(orderId)
             .orElseThrow(() -> new IllegalArgumentException("No such order: " + orderId));
-    String name = shop.findDrink(order.drinkSlug()).map(Drink::name).orElse(order.drinkSlug());
+    String name = cafe.findDrink(order.drinkSlug()).map(Drink::name).orElse(order.drinkSlug());
     String markdown =
         """
         # Order %s
