@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Mocapi Cafe — a stateless MCP storefront</title>
+<style>
+  /* ---- Tokens ------------------------------------------------------------ */
+  :root {
+    --espresso: #2B1B12;
+    --chalkboard: #22302B;
+    --oat: #F3ECDD;       /* page background */
+    --kraft: #D8BD97;     /* counter card */
+    --kraft-edge: #B9986B;
+    --caramel: #C2873F;   /* primary CTA */
+    --caramel-dk: #A06E2E;
+    --receipt: #FBF7EF;   /* wire log paper */
+    --ink: #3A2C20;       /* receipt ink */
+    --stamp: #9B3D2E;     /* MRTR pause / errors */
+    --leaf: #4B6B4E;      /* ok response ink */
+    --chalk: #EDE6D6;
+    --muted: #8A7A66;
+    --font-display: Georgia, "Times New Roman", serif;
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--oat);
+    color: var(--espresso);
+    font-family: var(--font-ui);
+    line-height: 1.5;
+    /* faint coffee-ring texture without an image */
+    background-image:
+      radial-gradient(circle at 12% 88%, rgba(155,61,46,0.04) 0 40px, transparent 41px),
+      radial-gradient(circle at 90% 12%, rgba(43,27,18,0.04) 0 60px, transparent 61px);
+  }
+
+  /* ---- Header ------------------------------------------------------------ */
+  header.bar {
+    background: var(--chalkboard);
+    color: var(--chalk);
+    padding: 18px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 3px solid var(--caramel);
+  }
+  header.bar h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: 0.5px;
+  }
+  header.bar h1 .cup { color: var(--caramel); }
+  header.bar .tag {
+    font-size: 12.5px;
+    color: #B9C4B6;
+    letter-spacing: 0.3px;
+  }
+  header.bar .conn {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #B9C4B6;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.up { background: #6Fae74; box-shadow: 0 0 0 3px rgba(111,174,116,0.25); }
+  .dot.down { background: var(--stamp); }
+
+  /* ---- Layout ------------------------------------------------------------ */
+  main {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 24px;
+    padding: 24px 28px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .col-shop { display: flex; flex-direction: column; gap: 22px; }
+
+  .eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .eyebrow .wire-uri {
+    font-family: var(--font-mono);
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--caramel-dk);
+  }
+  .card { border-radius: 10px; padding: 20px 22px; }
+  .card h2 { margin: 2px 0 14px; font-family: var(--font-display); font-weight: 400; font-size: 22px; }
+
+  /* ---- Menu: chalkboard -------------------------------------------------- */
+  .board {
+    background: var(--chalkboard);
+    color: var(--chalk);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06), 0 6px 20px rgba(34,48,43,0.25);
+    border: 8px solid #3a2f25;
+  }
+  .board .eyebrow { color: #9fb09b; }
+  .menu-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 9px 0;
+  }
+  .menu-row + .menu-row { border-top: 1px dashed rgba(237,230,214,0.18); }
+  .menu-row .name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    white-space: nowrap;
+  }
+  .menu-row .leader {
+    flex: 1;
+    border-bottom: 2px dotted rgba(237,230,214,0.35);
+    transform: translateY(-4px);
+    min-width: 18px;
+  }
+  .menu-row .price { font-family: var(--font-mono); color: var(--caramel); }
+  .menu-row .desc {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: #b7c2b3;
+    font-style: italic;
+    margin-top: -2px;
+  }
+  .menu-actions { display: flex; gap: 6px; }
+
+  /* ---- Buttons ----------------------------------------------------------- */
+  button {
+    font-family: var(--font-ui);
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    padding: 7px 13px;
+    transition: transform 0.08s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  button:active { transform: translateY(1px); }
+  .btn-primary { background: var(--caramel); color: #2a1a0c; font-weight: 600; }
+  .btn-primary:hover { background: var(--caramel-dk); color: #fff; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--chalk);
+    box-shadow: inset 0 0 0 1.5px rgba(237,230,214,0.4);
+  }
+  .btn-ghost:hover { background: rgba(237,230,214,0.1); }
+  .btn-link {
+    background: transparent; color: var(--caramel-dk); padding: 3px 6px;
+    font-weight: 600; text-decoration: underline; font-size: 12.5px;
+  }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 3px solid var(--caramel);
+    outline-offset: 2px;
+  }
+
+  /* ---- Counter (kraft) --------------------------------------------------- */
+  .counter {
+    background: var(--kraft);
+    border: 1px solid var(--kraft-edge);
+    box-shadow: 0 4px 14px rgba(160,110,46,0.18);
+  }
+  .counter .eyebrow { color: #7c6038; }
+  .order-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; font-weight: 600; color: #6b5232; text-transform: uppercase; letter-spacing: 0.06em; }
+  select, input[type=text] {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    padding: 7px 9px;
+    border: 1px solid var(--kraft-edge);
+    border-radius: 6px;
+    background: #fdf9f1;
+    color: var(--espresso);
+    min-width: 120px;
+  }
+  .or { color: #7c6038; font-size: 12px; align-self: center; padding: 0 2px 6px; }
+
+  .tickets { margin-top: 16px; }
+  .tickets .eyebrow { margin-bottom: 6px; }
+  .ticket {
+    display: flex; align-items: center; gap: 10px;
+    background: #fdf9f1;
+    border: 1px dashed var(--kraft-edge);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+  .ticket .id { font-family: var(--font-mono); font-weight: 700; color: var(--caramel-dk); }
+  .ticket .sum { flex: 1; color: #5b4731; }
+  .empty { color: #7c6038; font-size: 13px; font-style: italic; }
+
+  /* ---- Barista (paper) --------------------------------------------------- */
+  .barista { background: #fff; border: 1px solid #e6dcc6; }
+  .barista .eyebrow { color: var(--muted); }
+  .barista .say {
+    margin-top: 14px;
+    border-left: 3px solid var(--caramel);
+    padding: 10px 14px;
+    background: var(--oat);
+    border-radius: 0 6px 6px 0;
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: #4a382a;
+    display: none;
+  }
+  .barista .say.show { display: block; }
+  .barista .say .who { font-family: var(--font-ui); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: block; margin-bottom: 4px; }
+
+  .detail-tag {
+    font-family: var(--font-mono); font-size: 11px; color: var(--caramel-dk);
+    font-weight: 700; letter-spacing: 0.06em;
+  }
+  .detail-content { display: block; }
+  .detail-content h3 { font-family: var(--font-display); font-weight: 400; font-size: 21px; margin: 0 0 8px; }
+  .detail-content p { margin: 6px 0; font-size: 14px; color: #4a382a; }
+  .detail-content ul { margin: 6px 0; padding-left: 20px; }
+  .detail-content li { font-size: 14px; margin: 3px 0; color: #4a382a; }
+  .detail-content strong { color: var(--espresso); }
+  .detail-content code {
+    font-family: var(--font-mono); background: #efe7d6; padding: 1px 5px;
+    border-radius: 3px; font-size: 12.5px; color: var(--caramel-dk);
+  }
+
+  /* ---- Wire log: thermal receipt ---------------------------------------- */
+  .wire-wrap { position: sticky; top: 24px; }
+  .wire {
+    background: var(--receipt);
+    color: var(--ink);
+    border-radius: 4px;
+    padding: 0;
+    box-shadow: 0 8px 24px rgba(43,27,18,0.18);
+    /* perforated top + bottom edges */
+    border-top: 4px dashed var(--oat);
+    border-bottom: 4px dashed var(--oat);
+    position: relative;
+    overflow: hidden;
+  }
+  .wire-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px 8px;
+    border-bottom: 2px dashed #d8cdb8;
+  }
+  .wire-head .title {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink);
+  }
+  .wire-head .endpoint { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .wire-feed {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 6px 16px 20px;
+  }
+  .wire-feed::-webkit-scrollbar { width: 8px; }
+  .wire-feed::-webkit-scrollbar-thumb { background: #d8cdb8; border-radius: 4px; }
+
+  .xchg { padding: 10px 0 12px; border-bottom: 1px dashed #d8cdb8; animation: print 0.28s ease both; }
+  @keyframes print { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .line { white-space: pre-wrap; word-break: break-word; }
+  .line.sent { color: var(--ink); }
+  .line.hdr { color: var(--muted); }
+  .line.lbl { color: var(--caramel-dk); font-weight: 700; letter-spacing: 0.04em; }
+  .recv-ok { color: var(--leaf); font-weight: 700; }
+  .recv-pause { color: var(--stamp); font-weight: 700; }
+  .recv-err { color: var(--stamp); font-weight: 700; }
+  .stamp {
+    display: inline-block; margin: 4px 0; padding: 2px 8px;
+    border: 2px solid var(--stamp); color: var(--stamp);
+    border-radius: 4px; transform: rotate(-3deg);
+    font-weight: 700; letter-spacing: 0.08em; font-size: 11px;
+  }
+  .json { color: var(--ink); }
+  .json .k { color: var(--caramel-dk); }
+  .json .s { color: var(--leaf); }
+  .json .n { color: var(--stamp); }
+  details.body summary { cursor: pointer; color: var(--muted); font-size: 11px; outline: none; }
+  details.body[open] summary { color: var(--ink); }
+  .wire-empty { color: var(--muted); font-style: italic; padding: 14px 0; }
+
+  /* ---- MRTR modal -------------------------------------------------------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(34,27,18,0.55);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .scrim.show { display: flex; animation: fade 0.18s ease both; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--receipt); border-radius: 8px; max-width: 420px; width: 100%;
+    padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    border-top: 5px dashed var(--oat); border-bottom: 5px dashed var(--oat);
+  }
+  .modal-head { padding: 16px 20px 10px; border-bottom: 2px dashed #d8cdb8; }
+  .modal-head .pause-tag {
+    font-family: var(--font-mono); font-size: 11px; color: var(--stamp);
+    font-weight: 700; letter-spacing: 0.08em;
+  }
+  .modal-head h3 { margin: 6px 0 0; font-family: var(--font-display); font-weight: 400; font-size: 19px; }
+  .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .modal-body .field label { color: #6b5232; }
+  .modal-foot { padding: 0 20px 18px; display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-quiet { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px #cdbfa6; }
+  .btn-quiet:hover { background: #efe7d6; }
+
+  /* ---- Toast ------------------------------------------------------------- */
+  #toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: var(--espresso); color: var(--chalk); padding: 10px 18px;
+    border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease; z-index: 60; box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  }
+  #toast.show { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header class="bar">
+    <h1><span class="cup">&#9749;</span> The Mocapi Cafe</h1>
+    <span class="tag">a stateless MCP&nbsp;2026-07-28 storefront &mdash; every click is a real <code>/mcp</code> call</span>
+    <span class="conn"><span id="connDot" class="dot"></span><span id="connText">connecting&hellip;</span></span>
+  </header>
+
+  <main>
+    <!-- ============ STOREFRONT ============ -->
+    <section class="col-shop">
+
+      <!-- Menu: resource -->
+      <div class="card board">
+        <p class="eyebrow">Resource &middot; <span class="wire-uri">menu://drinks</span></p>
+        <h2>Today&rsquo;s Menu</h2>
+        <div id="menu"><p class="empty" style="color:#9fb09b">Reading the menu resource&hellip;</p></div>
+      </div>
+
+      <!-- Place order: tool -->
+      <div class="card counter">
+        <p class="eyebrow">Tool &middot; <span class="wire-uri" style="color:#7c6038">place-order</span></p>
+        <h2>Order Counter</h2>
+        <div class="order-form">
+          <div class="field">
+            <label for="drink">Drink</label>
+            <select id="drink"></select>
+          </div>
+          <div class="field">
+            <label for="size">Size</label>
+            <select id="size"></select>
+          </div>
+          <div class="field">
+            <label for="milk">Milk</label>
+            <select id="milk"></select>
+          </div>
+          <button class="btn-primary" id="placeBtn">Place order</button>
+          <span class="or">&mdash; or &mdash;</span>
+          <button class="btn-primary" id="interactiveBtn" style="background:var(--espresso);color:var(--chalk)">Order interactively &#9749;</button>
+        </div>
+        <div class="tickets">
+          <p class="eyebrow">Your tickets &middot; <span class="wire-uri" style="color:#7c6038">order://{id}</span></p>
+          <div id="tickets"><p class="empty">No orders yet &mdash; place one above.</p></div>
+        </div>
+      </div>
+
+      <!-- Prompt -->
+      <div class="card barista">
+        <p class="eyebrow">Prompt &middot; <span class="wire-uri">recommend-a-drink</span></p>
+        <h2>Ask the Barista</h2>
+        <div class="order-form">
+          <div class="field">
+            <label for="mood">I&rsquo;m in the mood for something&hellip;</label>
+            <input type="text" id="mood" value="cozy" />
+          </div>
+          <button class="btn-primary" id="recommendBtn">Recommend</button>
+        </div>
+        <div class="say" id="baristaSay"></div>
+      </div>
+    </section>
+
+    <!-- ============ WIRE LOG ============ -->
+    <section class="wire-wrap">
+      <div class="wire">
+        <div class="wire-head">
+          <span class="title">&#128225; Wire Log</span>
+          <span class="endpoint" id="wireEndpoint"></span>
+          <button class="btn-link" id="clearWire" style="color:var(--muted)">clear</button>
+        </div>
+        <div class="wire-feed" id="wire">
+          <p class="wire-empty">Receipts print here. Click anything on the left.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MRTR elicitation modal -->
+  <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="elicitTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="pause-tag">&#9208; MULTI ROUND-TRIP REQUEST &mdash; SERVER PAUSED</span>
+        <h3 id="elicitTitle">&hellip;</h3>
+      </div>
+      <div class="modal-body" id="elicitFields"></div>
+      <div class="modal-foot">
+        <button class="btn-quiet" id="elicitCancel">Cancel</button>
+        <button class="btn-primary" id="elicitSubmit">Send &amp; resume</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource-read detail modal (drink details + order status) -->
+  <div class="scrim" id="detailScrim" role="dialog" aria-modal="true" aria-labelledby="detailUri">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="detail-tag" id="detailUri">&hellip;</span>
+      </div>
+      <div class="modal-body detail-content" id="detailBody"></div>
+      <div class="modal-foot">
+        <button class="btn-primary" id="detailClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- MCP transport -----------------------------------------------------
+  var ENDPOINT = "/mcp";
+  var PROTOCOL = "2026-07-28";
+  var idSeq = 0;
+  function nextId() { return ++idSeq; }
+
+  function metaBlock(caps) {
+    return {
+      "io.modelcontextprotocol/protocolVersion": PROTOCOL,
+      "io.modelcontextprotocol/clientInfo": { name: "mocapi-cafe", version: "1.0" },
+      "io.modelcontextprotocol/clientCapabilities": caps || {}
+    };
+  }
+
+  // A single response may arrive as plain JSON or as an SSE stream; handle both.
+  function parseBody(text) {
+    try { return JSON.parse(text); } catch (e) { /* maybe SSE */ }
+    var data = text.split(/\r?\n/)
+      .filter(function (l) { return l.indexOf("data:") === 0; })
+      .map(function (l) { return l.slice(5).trim(); })
+      .join("");
+    return data ? JSON.parse(data) : { error: { message: "Unparseable response", raw: text } };
+  }
+
+  async function mcp(method, opts) {
+    opts = opts || {};
+    var headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/event-stream",
+      "MCP-Protocol-Version": PROTOCOL,
+      "Mcp-Method": method
+    };
+    if (opts.name) headers["Mcp-Name"] = opts.name;
+    var params = Object.assign({}, opts.params || {}, { _meta: metaBlock(opts.caps) });
+    var envelope = { jsonrpc: "2.0", id: nextId(), method: method, params: params };
+
+    logSent(opts.label || method, headers, envelope);
+    var status = 0, json;
+    try {
+      var res = await fetch(ENDPOINT, { method: "POST", headers: headers, body: JSON.stringify(envelope) });
+      status = res.status;
+      json = parseBody(await res.text());
+    } catch (err) {
+      logRecv(0, { error: { message: String(err) } }, "err");
+      setConn(false);
+      throw err;
+    }
+    var rt = json && json.result && json.result.resultType;
+    var kind = rt === "input_required" ? "pause"
+             : (json && json.error) ? "err" : "ok";
+    logRecv(status, json, kind);
+    return json;
+  }
+
+  // ---- Wire log (thermal receipt) ----------------------------------------
+  var wire = document.getElementById("wire");
+  var wiredOnce = false;
+
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+  function colorJson(obj) {
+    var json = JSON.stringify(obj, null, 2);
+    return esc(json)
+      .replace(/&quot;([^&]+?)&quot;:/g, '<span class="k">"$1"</span>:')
+      .replace(/: &quot;(.*?)&quot;/g, ': <span class="s">"$1"</span>')
+      .replace(/: (-?\d+\.?\d*)(,?)$/gm, ': <span class="n">$1</span>$2')
+      .replace(/: (true|false|null)/g, ': <span class="n">$1</span>');
+  }
+
+  function ensureFeed() {
+    if (!wiredOnce) { wire.innerHTML = ""; wiredOnce = true; }
+  }
+
+  function logSent(label, headers, envelope) {
+    ensureFeed();
+    var x = document.createElement("div");
+    x.className = "xchg";
+    var routing = ["Mcp-Method", "Mcp-Name"]
+      .filter(function (h) { return headers[h]; })
+      .map(function (h) { return "  " + h + ": " + headers[h]; }).join("\n");
+    x.innerHTML =
+      '<div class="line lbl">&raquo; ' + esc(label) + '</div>' +
+      '<div class="line sent">POST /mcp</div>' +
+      '<div class="line hdr">  MCP-Protocol-Version: ' + PROTOCOL + '\n' +
+        '  Accept: application/json, text/event-stream' + (routing ? "\n" + esc(routing) : "") + '</div>' +
+      '<details class="body"><summary>request body</summary>' +
+        '<div class="line json">' + colorJson(envelope) + '</div></details>';
+    wire.appendChild(x);
+    wire.scrollTop = wire.scrollHeight;
+  }
+
+  function logRecv(status, json, kind) {
+    var x = document.createElement("div");
+    x.className = "xchg";
+    var cls = kind === "ok" ? "recv-ok" : "recv-pause";
+    if (kind === "err") cls = "recv-err";
+    var rt = json && json.result && json.result.resultType;
+    var head = "&laquo; " + (status || "ERR") + " &middot; " + (rt ? rt : (json && json.error ? "error" : "complete"));
+    var inner = '<div class="line ' + cls + '">' + head + '</div>';
+    if (kind === "pause") {
+      inner += '<div class="stamp">&#9208; AWAITING CUSTOMER</div>';
+    }
+    inner += '<details class="body" ' + (kind === "ok" ? "" : "open") + '><summary>response body</summary>' +
+             '<div class="line json">' + colorJson(json) + '</div></details>';
+    x.innerHTML = inner;
+    wire.appendChild(x);
+    wire.scrollTop = wire.scrollHeight;
+  }
+
+  document.getElementById("clearWire").addEventListener("click", function () {
+    wire.innerHTML = '<p class="wire-empty">Receipts print here. Click anything on the left.</p>';
+    wiredOnce = false;
+  });
+
+  // ---- Connection status -------------------------------------------------
+  function setConn(up) {
+    var dot = document.getElementById("connDot"), txt = document.getElementById("connText");
+    dot.className = "dot " + (up ? "up" : "down");
+    txt.textContent = up ? "open" : "unreachable";
+  }
+
+  // ---- Toast -------------------------------------------------------------
+  var toastEl = document.getElementById("toast"), toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2600);
+  }
+
+  // ---- Storefront state --------------------------------------------------
+  var drinks = [];   // {name, slug, desc, price}
+  var sizes = ["SMALL", "MEDIUM", "LARGE"];
+  var milks = ["WHOLE", "OAT", "ALMOND", "NONE"];
+
+  function fillSelect(el, values) {
+    el.innerHTML = "";
+    values.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v; o.textContent = (typeof v === "string") ? v : v.label;
+      el.appendChild(o);
+    });
+  }
+
+  // The menu is a markdown resource; parse its rows into clickable items.
+  function parseMenu(md) {
+    var re = /- \*\*(.+?)\*\* \(`(.+?)`\) — (.+?) _(\$[\d.]+)_/g, m, out = [];
+    while ((m = re.exec(md)) !== null) {
+      out.push({ name: m[1], slug: m[2], desc: m[3], price: m[4] });
+    }
+    return out;
+  }
+
+  function renderMenu() {
+    var host = document.getElementById("menu");
+    host.innerHTML = "";
+    drinks.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "menu-row";
+      row.innerHTML =
+        '<span class="name">' + esc(d.name) + '</span>' +
+        '<span class="leader"></span>' +
+        '<span class="price">' + esc(d.price) + '</span>' +
+        '<span class="menu-actions">' +
+          '<button class="btn-ghost" data-act="pick">order</button>' +
+          '<button class="btn-link" data-act="detail">details</button>' +
+        '</span>' +
+        '<span class="desc">' + esc(d.desc) + '</span>';
+      row.querySelector('[data-act="pick"]').addEventListener("click", function () {
+        document.getElementById("drink").value = d.slug;
+        document.getElementById("drink").focus();
+        toast("Picked " + d.name + " — choose size & milk, then Place order.");
+      });
+      row.querySelector('[data-act="detail"]').addEventListener("click", function () { readDrink(d.slug); });
+      host.appendChild(row);
+    });
+  }
+
+  // ---- Actions -----------------------------------------------------------
+  async function boot() {
+    document.getElementById("wireEndpoint").textContent = window.location.host;
+    try {
+      // Schema-driven: pull size/milk options from the live place-order tool schema.
+      var tools = await mcp("tools/list", { label: "discover tools" });
+      setConn(true);
+      var place = (tools.result.tools || []).filter(function (t) { return t.name === "place-order"; })[0];
+      if (place) {
+        var p = place.inputSchema.properties;
+        if (p.size && p.size.enum) sizes = p.size.enum;
+        if (p.milk && p.milk.enum) milks = p.milk.enum;
+      }
+      fillSelect(document.getElementById("size"), sizes);
+      fillSelect(document.getElementById("milk"), milks);
+      document.getElementById("milk").value = milks.indexOf("OAT") >= 0 ? "OAT" : milks[0];
+
+      // The storefront menu IS a resource read.
+      var menu = await mcp("resources/read", { name: "menu://drinks", params: { uri: "menu://drinks" }, label: "read menu" });
+      drinks = parseMenu(menu.result.contents[0].text);
+      fillSelect(document.getElementById("drink"), drinks.map(function (d) { return { value: d.slug, label: d.name }; }));
+      // option labels need value=slug:
+      var drinkSel = document.getElementById("drink");
+      drinkSel.innerHTML = "";
+      drinks.forEach(function (d) {
+        var o = document.createElement("option"); o.value = d.slug; o.textContent = d.name; drinkSel.appendChild(o);
+      });
+      renderMenu();
+    } catch (e) {
+      setConn(false);
+      document.getElementById("menu").innerHTML = '<p class="empty" style="color:#e7a">Could not reach /mcp. Is the demo running?</p>';
+    }
+  }
+
+  async function readDrink(slug) {
+    var uri = "menu://drinks/" + slug;
+    var r = await mcp("resources/read", { name: uri, params: { uri: uri }, label: "read " + slug });
+    openDetail(uri, r.result.contents[0].text);
+  }
+
+  function addTicket(t) {
+    var host = document.getElementById("tickets");
+    if (host.querySelector(".empty")) host.innerHTML = "";
+    var el = document.createElement("div");
+    el.className = "ticket";
+    el.innerHTML = '<span class="id">' + esc(t.orderId) + '</span>' +
+      '<span class="sum">' + esc(t.summary) + '</span>' +
+      '<button class="btn-link">status</button>';
+    el.querySelector("button").addEventListener("click", function () { readOrder(t.orderId); });
+    host.appendChild(el);
+  }
+
+  async function readOrder(id) {
+    var uri = "order://" + id;
+    var r = await mcp("resources/read", { name: uri, params: { uri: uri }, label: "read " + uri });
+    openDetail(uri, r.result.contents[0].text);
+  }
+
+  // ---- Resource-read detail modal ---------------------------------------
+  var detailScrim = document.getElementById("detailScrim");
+
+  // The menu/order resources return small markdown documents; render the
+  // headings, bold, lists, and inline code so the modal reads like a card
+  // rather than raw text.
+  function inlineMd(s) {
+    return esc(s)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`(.+?)`/g, "<code>$1</code>")
+      .replace(/_(.+?)_/g, "<em>$1</em>");
+  }
+  function renderMarkdown(md) {
+    var html = "", inList = false;
+    (md || "").split(/\r?\n/).forEach(function (line) {
+      if (/^#\s+/.test(line)) {
+        if (inList) { html += "</ul>"; inList = false; }
+        html += "<h3>" + inlineMd(line.replace(/^#\s+/, "")) + "</h3>";
+      } else if (/^-\s+/.test(line)) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        html += "<li>" + inlineMd(line.replace(/^-\s+/, "")) + "</li>";
+      } else if (line.trim() === "") {
+        if (inList) { html += "</ul>"; inList = false; }
+      } else {
+        if (inList) { html += "</ul>"; inList = false; }
+        html += "<p>" + inlineMd(line) + "</p>";
+      }
+    });
+    if (inList) html += "</ul>";
+    return html;
+  }
+  function openDetail(uri, md) {
+    document.getElementById("detailUri").textContent = "RESOURCE · " + uri;
+    document.getElementById("detailBody").innerHTML = renderMarkdown(md);
+    detailScrim.classList.add("show");
+    document.getElementById("detailClose").focus();
+  }
+  function closeDetail() { detailScrim.classList.remove("show"); }
+  document.getElementById("detailClose").addEventListener("click", closeDetail);
+  detailScrim.addEventListener("click", function (e) { if (e.target === detailScrim) closeDetail(); });
+
+  document.getElementById("placeBtn").addEventListener("click", async function () {
+    var args = {
+      drink: document.getElementById("drink").value,
+      size: document.getElementById("size").value,
+      milk: document.getElementById("milk").value
+    };
+    var r = await mcp("tools/call", { name: "place-order", params: { name: "place-order", arguments: args }, label: "place-order" });
+    if (r.result && r.result.structuredContent) {
+      addTicket(r.result.structuredContent);
+      toast("Order placed: " + r.result.structuredContent.orderId);
+    }
+  });
+
+  document.getElementById("recommendBtn").addEventListener("click", async function () {
+    var mood = document.getElementById("mood").value || "surprising";
+    var r = await mcp("prompts/get", { name: "recommend-a-drink", params: { name: "recommend-a-drink", arguments: { mood: mood } }, label: "recommend-a-drink" });
+    var msgs = (r.result && r.result.messages) || [];
+    var text = msgs.map(function (m) { return m.content && m.content.text; }).filter(Boolean).join("\n\n");
+    var say = document.getElementById("baristaSay");
+    say.innerHTML = '<span class="who">Prompt rendered for the model</span>' + esc(text);
+    say.classList.add("show");
+  });
+
+  // ---- MRTR elicitation flow --------------------------------------------
+  var pending = null; // { requestState, key }
+
+  document.getElementById("interactiveBtn").addEventListener("click", async function () {
+    var r = await mcp("tools/call", {
+      name: "order-interactive",
+      params: { name: "order-interactive", arguments: {} },
+      caps: { elicitation: { form: {} } },
+      label: "order-interactive"
+    });
+    if (r.result && r.result.resultType === "input_required") {
+      var key = Object.keys(r.result.inputRequests)[0];
+      var req = r.result.inputRequests[key];
+      pending = { requestState: r.result.requestState, key: key };
+      openElicit(req.params.message, req.params.requestedSchema);
+    } else if (r.result && r.result.structuredContent) {
+      addTicket(r.result.structuredContent);
+    }
+  });
+
+  var scrim = document.getElementById("scrim");
+
+  function openElicit(message, schema) {
+    document.getElementById("elicitTitle").textContent = message || "What can we get started for you?";
+    var host = document.getElementById("elicitFields");
+    host.innerHTML = "";
+    var props = (schema && schema.properties) || {};
+    Object.keys(props).forEach(function (field) {
+      var spec = props[field];
+      var wrap = document.createElement("div");
+      wrap.className = "field";
+      var sel = document.createElement("select");
+      sel.id = "el_" + field;
+      (spec.enum || []).forEach(function (v) {
+        var o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o);
+      });
+      wrap.innerHTML = '<label for="el_' + field + '">' + esc(field) + '</label>';
+      wrap.appendChild(sel);
+      host.appendChild(wrap);
+    });
+    scrim.classList.add("show");
+    var first = host.querySelector("select"); if (first) first.focus();
+  }
+
+  function closeElicit() { scrim.classList.remove("show"); pending = null; }
+
+  async function resumeElicit(action) {
+    if (!pending) return;
+    var content = {};
+    document.querySelectorAll('#elicitFields select').forEach(function (sel) {
+      content[sel.id.slice(3)] = sel.value;
+    });
+    var responses = {};
+    responses[pending.key] = action === "accept" ? { action: "accept", content: content } : { action: "decline" };
+    var state = pending.requestState, key = pending.key;
+    closeElicit();
+    var r = await mcp("tools/call", {
+      name: "order-interactive",
+      params: { name: "order-interactive", arguments: {}, requestState: state, inputResponses: responses },
+      caps: { elicitation: { form: {} } },
+      label: "resume MRTR (" + action + ")"
+    });
+    var t = r.result && r.result.structuredContent;
+    if (t && t.orderId) { addTicket(t); toast("Order placed: " + t.orderId); }
+    else if (t) { toast(t.summary || "Order cancelled."); }
+  }
+
+  document.getElementById("elicitSubmit").addEventListener("click", function () { resumeElicit("accept"); });
+  document.getElementById("elicitCancel").addEventListener("click", function () { resumeElicit("decline"); });
+  scrim.addEventListener("click", function (e) { if (e.target === scrim) resumeElicit("decline"); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (scrim.classList.contains("show")) resumeElicit("decline");
+    else if (detailScrim.classList.contains("show")) closeDetail();
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
