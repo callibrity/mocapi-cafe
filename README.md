@@ -215,14 +215,15 @@ Three things the server enforces — easy to get wrong by hand:
 `mocapi-otel` emits a two-layer trace for every tool/prompt/resource call — an outer `jsonrpc.server`
 span enriched with `mcp.*` tags, wrapping an inner `mcp.handler.execution` span with GenAI / resource
 attributes. The demo is already configured to export OTLP traces to `http://localhost:4318`. Start
-Jaeger's all-in-one (it has a built-in OTLP receiver and a trace UI), **then** run the demo:
+Jaeger v2 (built on the OTel Collector — OTLP receivers are on by default, with a trace UI),
+**then** run the demo:
 
 ```bash
 docker run --rm --name jaeger \
-  -e COLLECTOR_OTLP_ENABLED=true \
   -p 16686:16686 \
+  -p 4317:4317 \
   -p 4318:4318 \
-  jaegertracing/all-in-one:1.76.0
+  jaegertracing/jaeger:latest
 ```
 
 Open the UI at **http://localhost:16686**, click around the storefront, then pick service
