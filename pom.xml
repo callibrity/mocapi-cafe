@@ -14,7 +14,7 @@
     <groupId>com.callibrity.demo</groupId>
     <artifactId>coffeeshop-mcp</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>CinJUG Coffee Shop MCP Demo</name>
+    <name>The Mocapi Cafe</name>
     <description>A stateless MCP server built with Mocapi, demonstrating the MCP 2026-07-28 primitives</description>
 
     <properties>

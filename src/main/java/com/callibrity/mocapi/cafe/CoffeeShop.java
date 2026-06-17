@@ -1,4 +1,4 @@
-package com.callibrity.demo.coffeeshop;
+package com.callibrity.mocapi.cafe;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;

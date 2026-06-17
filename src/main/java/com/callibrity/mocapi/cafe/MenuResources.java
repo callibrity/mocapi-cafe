@@ -1,4 +1,4 @@
-package com.callibrity.demo.coffeeshop;
+package com.callibrity.mocapi.cafe;
 
 import com.callibrity.mocapi.api.resources.McpResource;
 import com.callibrity.mocapi.api.resources.McpResourceTemplate;

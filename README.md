@@ -1,4 +1,4 @@
-# Coffee Shop MCP — CinJUG demo
+# The Mocapi Cafe
 
 A tiny but complete **MCP 2026-07-28** server built with [Mocapi](https://github.com/callibrity/mocapi),
 written for the "You down with MCP?" talk. It models a coffee shop and exercises every primitive the
@@ -7,9 +7,10 @@ talk covers, plus the new stateless-spec features.
 Because the protocol is now **stateless**, this is a single plain Spring Boot app — no Redis/Postgres
 "flavors" for session state like the old 2025-11-25 demos. Scale it by running more copies.
 
-> **Heads up:** MCP 2026-07-28 is still a **draft** (targeted for release around July 2026). Mocapi
-> tracks it on a dedicated branch, and tooling is catching up — notably, the public **MCP Inspector
-> does not support this version yet**. Drive the demo with the bundled storefront or `curl`.
+> **Heads up:** MCP 2026-07-28 is still a **draft** (targeted for release around July 2026). It
+> isn't released in Mocapi yet, so its support currently lives on the `mcp-2026-07-28` branch (it'll
+> land on `main` once the spec is final). Tooling is also catching up — notably, the public **MCP
+> Inspector does not support this version yet**. Drive the demo with the bundled storefront or `curl`.
 
 It ships with a browser storefront — **The Mocapi Cafe** — served by the app itself at
 `http://localhost:8080/`. Every button is a real call to the `/mcp` endpoint, and a side-by-side
@@ -37,22 +38,22 @@ The three control models line up with the overview slide: tools = **model**-cont
 
 ## Quickstart
 
-### 1. Build Mocapi from the newest protocol branch
+### 1. Build Mocapi from the `mcp-2026-07-28` branch
 
-Mocapi tracks the MCP spec on a per-protocol branch, and the 2026-07-28 work is **not** on Maven
-Central yet — you build the SNAPSHOT into your local `~/.m2` first. Always build from the **newest
-protocol branch** (currently **`mcp-2026-07-28`**), not `main`:
+MCP 2026-07-28 isn't released in Mocapi yet, so its support isn't on Maven Central — it currently
+lives on the **`mcp-2026-07-28`** branch (it'll land on `main` once the spec is final). Build that
+branch into your local `~/.m2` first:
 
 ```bash
 git clone https://github.com/callibrity/mocapi.git
 cd mocapi
-git checkout mcp-2026-07-28      # the newest protocol branch
+git checkout mcp-2026-07-28      # the unreleased 2026-07-28 work
 mvn clean install -DskipTests    # publishes 0.18.0-SNAPSHOT to ~/.m2
 ```
 
 This demo depends on `0.18.0-SNAPSHOT` (see the `mocapi.version` property in `pom.xml`). If Maven
-reports `Could not resolve dependencies … mocapi-*:0.18.0-SNAPSHOT`, this step hasn't run or you built
-the wrong branch.
+reports `Could not resolve dependencies … mocapi-*:0.18.0-SNAPSHOT`, you haven't run this step or you
+built a branch without the 2026-07-28 work.
 
 ### 2. Run the demo
 

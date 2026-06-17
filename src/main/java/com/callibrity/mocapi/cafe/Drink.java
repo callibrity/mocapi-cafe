@@ -1,4 +1,4 @@
-package com.callibrity.demo.coffeeshop;
+package com.callibrity.mocapi.cafe;
 
 /** A menu item. */
 public record Drink(String slug, String name, int priceCents, String description) {
